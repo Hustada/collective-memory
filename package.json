@@ -1,15 +1,47 @@
 {
   "name": "collective-memory",
   "version": "0.1.0",
-  "description": "MCP server for persistent, searchable agent memory",
+  "description": "MCP server for persistent, semantic memory across AI sessions",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "collective-memory": "dist/cli.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "memory",
+    "embeddings",
+    "vector-database",
+    "claude",
+    "semantic-search"
+  ],
+  "author": "The Victor Collective <hello@victorcollective.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hustada/collective-memory.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Hustada/collective-memory/issues"
+  },
+  "homepage": "https://github.com/Hustada/collective-memory#readme",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
+    "cli": "node dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrate": "tsx scripts/migrate-memory-md.ts"
+    "migrate": "tsx scripts/migrate-memory-md.ts",
+    "export": "tsx scripts/export-memory.ts",
+    "viz": "npx serve viz -p 3333",
+    "dash": "npm run export && npx serve viz -p 3333"
   },
   "dependencies": {
     "@lancedb/lancedb": "^0.13.0",
@@ -21,6 +53,7 @@
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
+    "umap-js": "^1.4.0",
     "vitest": "^3.0.0"
   }
 }

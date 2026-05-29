@@ -27,5 +27,5 @@ export const DEFAULT_TYPE: MemoryType = "context";
 export const DEFAULT_AGENT = "claude-code";
 export const DEFAULT_LIMIT = 10;
 
-export const DB_PATH = `${process.env.HOME}/.victor-collective/memory`;
+export const DB_PATH = process.env.COLLECTIVE_MEMORY_PATH || `${process.env.HOME}/.collective-memory/data`;
 export const TABLE_NAME = "memories";
