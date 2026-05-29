@@ -23,7 +23,7 @@ npm install -g collective-memory
 Or clone and build:
 
 ```bash
-git clone https://github.com/victorcollective/collective-memory.git
+git clone https://github.com/Hustada/collective-memory.git
 cd collective-memory
 npm install
 npm run build
