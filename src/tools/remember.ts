@@ -14,6 +14,7 @@ export interface RememberResult {
   project: string;
   type: string;
   created_at: string;
+  deduplicated?: boolean;
 }
 
 export async function handleRemember(
@@ -31,6 +32,20 @@ export async function handleRemember(
   const type = input.type || DEFAULT_TYPE;
 
   const vector = await embedder.embed(input.content);
+
+  const count = await store.count();
+  if (count > 0) {
+    const matches = await store.search(vector, 1);
+    if (matches.length > 0 && matches[0].similarity > 0.95) {
+      return {
+        id: matches[0].id,
+        project: matches[0].project,
+        type: matches[0].type,
+        created_at: matches[0].created_at,
+        deduplicated: true,
+      };
+    }
+  }
 
   await store.add({
     id,

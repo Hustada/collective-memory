@@ -9,7 +9,7 @@ import type { Embedder } from "../src/embed.js";
 
 function fakeEmbedder(): Embedder {
   return {
-    provider: "ollama",
+    provider: "openai",
     async embed(_text: string) {
       return Array.from({ length: VECTOR_DIMENSIONS }, () => Math.random());
     },
@@ -76,11 +76,56 @@ describe("remember", () => {
     ).rejects.toThrow();
   });
 
+  it("deduplicates when identical content is stored", async () => {
+    const store = await createStore(tmpDir);
+    const vector = Array.from({ length: VECTOR_DIMENSIONS }, () => 0.5);
+    const embedder: Embedder = {
+      provider: "openai",
+      async embed() { return vector; },
+    };
+
+    const first = await handleRemember(store, embedder, {
+      content: "This is a duplicate test",
+    });
+    const second = await handleRemember(store, embedder, {
+      content: "This is a duplicate test",
+    });
+
+    expect(first.deduplicated).toBeUndefined();
+    expect(second.deduplicated).toBe(true);
+    expect(second.id).toBe(first.id);
+  });
+
+  it("does not deduplicate when content differs", async () => {
+    const store = await createStore(tmpDir);
+    let callCount = 0;
+    const embedder: Embedder = {
+      provider: "openai",
+      async embed() {
+        callCount++;
+        return Array.from({ length: VECTOR_DIMENSIONS }, (_, i) =>
+          Math.sin(callCount * (i + 1))
+        );
+      },
+    };
+
+    const first = await handleRemember(store, embedder, {
+      content: "First unique memory",
+    });
+    const second = await handleRemember(store, embedder, {
+      content: "Completely different memory",
+    });
+
+    expect(first.deduplicated).toBeUndefined();
+    expect(second.deduplicated).toBeUndefined();
+    expect(second.id).not.toBe(first.id);
+  });
+
   it("stored memory is retrievable", async () => {
     const store = await createStore(tmpDir);
     const vector = Array.from({ length: VECTOR_DIMENSIONS }, () => 0.5);
     const embedder: Embedder = {
-      provider: "ollama",
+      provider: "openai",
       async embed() { return vector; },
     };
 

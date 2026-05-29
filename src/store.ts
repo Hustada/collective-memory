@@ -24,6 +24,7 @@ export interface MemoryStore {
     limit: number,
     filters?: SearchFilters
   ): Promise<SearchResult[]>;
+  count(): Promise<number>;
 }
 
 export async function createStore(dbPath: string): Promise<MemoryStore> {
@@ -55,6 +56,10 @@ export async function createStore(dbPath: string): Promise<MemoryStore> {
   return {
     async add(entry: MemoryEntry): Promise<void> {
       await table.add([entry as unknown as Record<string, unknown>]);
+    },
+
+    async count(): Promise<number> {
+      return table.countRows();
     },
 
     async search(

@@ -2,20 +2,39 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { VECTOR_DIMENSIONS } from "../src/types.js";
-import { createStore } from "../src/store.js";
+import { VECTOR_DIMENSIONS, type MemoryEntry } from "../src/types.js";
+import { createStore, type MemoryStore } from "../src/store.js";
 import { handleRemember } from "../src/tools/remember.js";
 import { handleRecall } from "../src/tools/recall.js";
 import type { Embedder } from "../src/embed.js";
 
 function deterministicEmbedder(seed: number): Embedder {
   return {
-    provider: "ollama",
+    provider: "openai",
     async embed() {
       return Array.from({ length: VECTOR_DIMENSIONS }, (_, i) =>
         Math.sin(seed * (i + 1))
       );
     },
+  };
+}
+
+function fakeVector(seed: number): number[] {
+  return Array.from({ length: VECTOR_DIMENSIONS }, (_, i) =>
+    Math.sin(seed * (i + 1))
+  );
+}
+
+function makeEntry(overrides: Partial<MemoryEntry> & { content: string; vector: number[] }): MemoryEntry {
+  return {
+    id: crypto.randomUUID(),
+    project: "global",
+    type: "context",
+    agent: "claude-code",
+    tags: "[]",
+    created_at: new Date().toISOString(),
+    session_id: "",
+    ...overrides,
   };
 }
 
@@ -51,14 +70,8 @@ describe("recall", () => {
     const store = await createStore(tmpDir);
     const embedder = deterministicEmbedder(1);
 
-    await handleRemember(store, embedder, {
-      content: "Alvis uses AWS",
-      project: "alvis",
-    });
-    await handleRemember(store, embedder, {
-      content: "Global config note",
-      project: "global",
-    });
+    await store.add(makeEntry({ content: "Alvis uses AWS", vector: fakeVector(1), project: "alvis" }));
+    await store.add(makeEntry({ content: "Global config note", vector: fakeVector(1), project: "global" }));
 
     const results = await handleRecall(store, embedder, {
       query: "infrastructure",
@@ -73,14 +86,8 @@ describe("recall", () => {
     const store = await createStore(tmpDir);
     const embedder = deterministicEmbedder(1);
 
-    await handleRemember(store, embedder, {
-      content: "Decided to use LanceDB",
-      type: "decision",
-    });
-    await handleRemember(store, embedder, {
-      content: "Some context",
-      type: "context",
-    });
+    await store.add(makeEntry({ content: "Decided to use LanceDB", vector: fakeVector(1), type: "decision" }));
+    await store.add(makeEntry({ content: "Some context", vector: fakeVector(1), type: "context" }));
 
     const results = await handleRecall(store, embedder, {
       query: "database",
@@ -96,7 +103,7 @@ describe("recall", () => {
     const embedder = deterministicEmbedder(1);
 
     for (let i = 0; i < 5; i++) {
-      await handleRemember(store, embedder, { content: `Memory ${i}` });
+      await store.add(makeEntry({ content: `Memory ${i}`, vector: fakeVector(i + 1) }));
     }
 
     const results = await handleRecall(store, embedder, {
@@ -112,7 +119,7 @@ describe("recall", () => {
     const embedder = deterministicEmbedder(1);
 
     for (let i = 0; i < 15; i++) {
-      await handleRemember(store, embedder, { content: `Memory ${i}` });
+      await store.add(makeEntry({ content: `Memory ${i}`, vector: fakeVector(i + 1) }));
     }
 
     const results = await handleRecall(store, embedder, {

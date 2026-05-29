@@ -20,40 +20,10 @@ describe("embed", () => {
     }) as typeof fetch;
   }
 
-  it("detects Ollama availability and uses it", async () => {
-    const fakeVector = Array.from({ length: VECTOR_DIMENSIONS }, (_, i) => i * 0.001);
-
-    mockFetch((url) => {
-      if (url.includes("localhost:11434/api/tags")) {
-        return new Response(
-          JSON.stringify({ models: [{ name: "nomic-embed-text:latest" }] }),
-          { status: 200 }
-        );
-      }
-      if (url.includes("localhost:11434/api/embed")) {
-        return new Response(
-          JSON.stringify({ embeddings: [fakeVector] }),
-          { status: 200 }
-        );
-      }
-      return new Response("", { status: 404 });
-    });
-
-    const { createEmbedder } = await import("../src/embed.js");
-    const embedder = await createEmbedder();
-    const result = await embedder.embed("test text");
-
-    expect(result).toHaveLength(VECTOR_DIMENSIONS);
-    expect(result).toEqual(fakeVector);
-  });
-
-  it("falls back to OpenAI when Ollama unavailable", async () => {
+  it("uses OpenAI for embeddings", async () => {
     const fakeVector = Array.from({ length: VECTOR_DIMENSIONS }, (_, i) => i * 0.002);
 
     mockFetch((url) => {
-      if (url.includes("localhost:11434")) {
-        throw new Error("Connection refused");
-      }
       if (url.includes("api.openai.com")) {
         return new Response(
           JSON.stringify({ data: [{ embedding: fakeVector }] }),
@@ -68,35 +38,8 @@ describe("embed", () => {
     const embedder = await createEmbedder();
     const result = await embedder.embed("test text");
 
+    expect(embedder.provider).toBe("openai");
     expect(result).toHaveLength(VECTOR_DIMENSIONS);
-    expect(result).toEqual(fakeVector);
-    delete process.env.OPENAI_API_KEY;
-  });
-
-  it("falls back to OpenAI when Ollama lacks nomic-embed-text", async () => {
-    const fakeVector = Array.from({ length: VECTOR_DIMENSIONS }, (_, i) => i * 0.003);
-
-    mockFetch((url) => {
-      if (url.includes("localhost:11434/api/tags")) {
-        return new Response(
-          JSON.stringify({ models: [{ name: "llama3:latest" }] }),
-          { status: 200 }
-        );
-      }
-      if (url.includes("api.openai.com")) {
-        return new Response(
-          JSON.stringify({ data: [{ embedding: fakeVector }] }),
-          { status: 200 }
-        );
-      }
-      return new Response("", { status: 404 });
-    });
-
-    process.env.OPENAI_API_KEY = "test-key";
-    const { createEmbedder } = await import("../src/embed.js");
-    const embedder = await createEmbedder();
-    const result = await embedder.embed("test text");
-
     expect(result).toEqual(fakeVector);
     delete process.env.OPENAI_API_KEY;
   });
@@ -105,63 +48,9 @@ describe("embed", () => {
     const fakeVector = Array.from({ length: VECTOR_DIMENSIONS }, () => Math.random());
 
     mockFetch((url) => {
-      if (url.includes("localhost:11434/api/tags")) {
-        return new Response(
-          JSON.stringify({ models: [{ name: "nomic-embed-text:latest" }] }),
-          { status: 200 }
-        );
-      }
-      if (url.includes("localhost:11434/api/embed")) {
-        return new Response(
-          JSON.stringify({ embeddings: [fakeVector] }),
-          { status: 200 }
-        );
-      }
-      return new Response("", { status: 404 });
-    });
-
-    const { createEmbedder } = await import("../src/embed.js");
-    const embedder = await createEmbedder();
-    const result = await embedder.embed("test");
-
-    expect(result).toHaveLength(768);
-  });
-
-  it("throws when no provider available", async () => {
-    mockFetch(() => {
-      throw new Error("Connection refused");
-    });
-
-    delete process.env.OPENAI_API_KEY;
-    const { createEmbedder } = await import("../src/embed.js");
-    await expect(createEmbedder()).rejects.toThrow();
-  });
-
-  it("runtime fallback: Ollama dies, catches with OpenAI", async () => {
-    let callCount = 0;
-    const ollamaVector = Array.from({ length: VECTOR_DIMENSIONS }, () => 0.1);
-    const openaiVector = Array.from({ length: VECTOR_DIMENSIONS }, () => 0.2);
-
-    mockFetch((url) => {
-      if (url.includes("localhost:11434/api/tags")) {
-        return new Response(
-          JSON.stringify({ models: [{ name: "nomic-embed-text:latest" }] }),
-          { status: 200 }
-        );
-      }
-      if (url.includes("localhost:11434/api/embed")) {
-        callCount++;
-        if (callCount > 1) {
-          throw new Error("Connection refused");
-        }
-        return new Response(
-          JSON.stringify({ embeddings: [ollamaVector] }),
-          { status: 200 }
-        );
-      }
       if (url.includes("api.openai.com")) {
         return new Response(
-          JSON.stringify({ data: [{ embedding: openaiVector }] }),
+          JSON.stringify({ data: [{ embedding: fakeVector }] }),
           { status: 200 }
         );
       }
@@ -171,13 +60,26 @@ describe("embed", () => {
     process.env.OPENAI_API_KEY = "test-key";
     const { createEmbedder } = await import("../src/embed.js");
     const embedder = await createEmbedder();
+    const result = await embedder.embed("test");
 
-    const first = await embedder.embed("first call");
-    expect(first).toEqual(ollamaVector);
+    expect(result).toHaveLength(768);
+    delete process.env.OPENAI_API_KEY;
+  });
 
-    const second = await embedder.embed("second call");
-    expect(second).toEqual(openaiVector);
+  it("throws when OPENAI_API_KEY not set", async () => {
+    delete process.env.OPENAI_API_KEY;
+    const { createEmbedder } = await import("../src/embed.js");
+    await expect(createEmbedder()).rejects.toThrow("OPENAI_API_KEY not set");
+  });
 
+  it("throws on OpenAI API error", async () => {
+    mockFetch(() => new Response("", { status: 500 }));
+
+    process.env.OPENAI_API_KEY = "test-key";
+    const { createEmbedder } = await import("../src/embed.js");
+    const embedder = await createEmbedder();
+
+    await expect(embedder.embed("test")).rejects.toThrow("OpenAI embed failed: 500");
     delete process.env.OPENAI_API_KEY;
   });
 });

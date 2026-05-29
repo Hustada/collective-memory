@@ -1,7 +1,7 @@
 {
   "name": "collective-memory",
-  "version": "0.1.1",
-  "mcpName": "io.github.hustada/collective-memory",
+  "version": "0.1.2",
+  "mcpName": "io.github.Hustada/collective-memory",
   "description": "MCP server for persistent, semantic memory across AI sessions",
   "type": "module",
   "main": "dist/index.js",
